@@ -1,0 +1,266 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings;
+
+use Tk;
+
+
+my %launcher_config = (
+	emupath => '/usr/games/mupen64plus',
+	rompath => "$ENV{HOME}/games/N64",
+	romexts => 'z64 v64 n64',
+	pluginpath => '/usr/lib/i386-linux-gnu/mupen64plus'
+);
+
+my %emulator_config = (
+	gfxplugin => 'mupen64plus-video-rice.so',
+	audioplugin => 'mupen64plus-audio-sdl.so',
+	inputplugin => 'mupen64plus-input-sdl.so',
+	rspplugin => 'mupen64plus-rsp-hle.so',
+
+	windowedflag => 0,
+	fullscreenflag => 1,
+
+	resolutionoption => '1080x720'
+);
+
+sub main {
+	my $main_window = &create_gui;
+	Tk::MainLoop;
+}
+
+sub create_gui {
+	my $main_window = new Tk::MainWindow;
+
+	&create_main_menu($main_window);
+	&create_launcher($main_window);
+
+	return $main_window;
+}
+
+sub create_main_menu {
+	my $main_window = shift;
+
+	my $main_menu = $main_window->Menu();
+	$main_window->configure(-menu => $main_menu);
+	$main_window->{main_menu} = $main_menu;
+
+	my $file_menu = $main_menu->Menu(-tearoff => 0);
+	$file_menu->add('command', -label => 'Quit',
+			-command => sub { $main_window->destroy });
+	$main_menu->add('cascade', -label => 'File', -menu => $file_menu);
+
+	my $settings_menu = $main_menu->Menu(-tearoff => 0);
+	my $title = $main_window->title;
+	$settings_menu->add('command', -label => "Configure $title",
+			-command => sub { &create_config_launcher_window($main_window) });
+	$settings_menu->add('command', -label => 'Configure Emulator',
+			-command => sub { &create_config_emulator_window($main_window) });
+	$main_menu->add('cascade', -label => 'Settings', -menu => $settings_menu);
+
+	return $main_menu;
+}
+
+sub create_config_launcher_window {
+	my $main_window = shift;
+
+	my $config_window = $main_window->Toplevel(-title => 'Configure launcher');
+	$config_window->bind('<Destroy>', sub { $main_window->state('normal') });
+	$main_window->state('withdraw');
+
+	my $row = 0;
+	while(my ($key, $value) = each %launcher_config) {
+		my $label = $config_window->Label(-text => $key);
+		$label->grid(-row => $row, -column => 0, -sticky => 'e');
+
+		my $entry = $config_window->Entry(-width => 40, -bg => '#ffffff');
+		$entry->insert('insert', $value);
+		$entry->grid(-row => $row, -column => 1, -sticky => 'w');
+		$config_window->{$key} = $entry;
+		$row++;
+	}
+
+	$config_window->Button(-text => 'Save',
+			-command => sub {
+				foreach my $key(keys %launcher_config) {
+					$launcher_config{$key} = $config_window->{$key}->get;
+				}
+				$config_window->destroy;
+			}
+	)->grid(-row => $row, -column => 0, -sticky => 'e');
+	$config_window->Button(-text => 'Cancel',
+			-command => sub { $config_window->destroy}
+	)->grid(-row => $row,-column => 1, -sticky => 'w');
+
+	return $config_window;
+}
+
+sub create_config_emulator_window {
+	my $main_window = shift;
+
+	my $config_window = $main_window->Toplevel(-title => 'Configure Emulator');
+	$config_window->bind('<Destroy>', sub { $main_window->state('normal') });
+	$main_window->state('withdraw');
+
+
+	my $plugins_frame = $config_window->Frame(-relief => 'groove');
+	$plugins_frame->Label(-text => 'Plugins')->grid(-row => 0, -column => 0,
+			-columnspan => 2, -sticky => 'w');
+	$plugins_frame->grid(-row => 0, -column => 0, -sticky => 'w');
+
+	my $flags_frame = $config_window->Frame(-relief => 'groove');
+	$flags_frame->Label(-text => 'Flags')->grid(-row => 0, -column => 0,
+			-columnspan => 2, -sticky => 'w');
+	$flags_frame->grid(-row => 1, -column => 0, -sticky => 'w');
+
+	my $options_frame = $config_window->Frame(-relief => 'groove');
+	$options_frame->Label(-text => 'Options')->grid(-row => 0, -column => 0,
+			-columnspan => 2, -sticky => 'w');
+	$options_frame->grid(-row => 2, -column => 0, -sticky => 'w');
+
+	my $plugins_row = my $flags_row = my $options_row = 1;
+
+	while(my ($key, $value) = each %emulator_config) {
+		$key =~ /(\w+)(plugin|flag|option)/;
+		if($2 eq 'plugin') {
+			$plugins_frame->Label(-text => "$1")->grid(-row => $plugins_row,
+					-column => 0, -sticky => 'e');
+			my $entry = $plugins_frame->Entry(-width => 40, -bg => '#ffffff');
+			$entry->insert('insert', $value);
+			$entry->grid(-row => $plugins_row, -column => 1, -sticky => 'w');
+			$config_window->{$key} = $entry;
+			$plugins_row++;
+		} elsif($2 eq 'flag') {
+			$flags_frame->Label(-text => "$1")->grid(-row => $flags_row,
+					-column => 0, -sticky => 'e');
+			my $button = $flags_frame->Checkbutton();
+			$button->select if $value;
+			$button->grid(-row => $flags_row, -column => 1, -sticky => 'w');
+			$config_window->{$key} = $button;
+			$flags_row++;
+		} elsif($2 eq 'option') {
+			$options_frame->Label(-text => "$1")->grid(-row => $options_row,
+					-column => 0, -sticky => 'e');
+			my $entry = $options_frame->Entry(-width => 40, -bg => '#ffffff');
+			$entry->insert('insert', $value);
+			$entry->grid(-row => $options_row, -column => 1, -sticky => 'w');
+			$config_window->{$key} = $entry;
+			$options_row++;
+		} else {
+			print STDERR "\$1=$1\n\$2=$2\n";
+			die "WTF! What do you have in \%emulator_config: $key = $value";
+		}
+	}
+
+	my $button_frame = $config_window->Frame(-relief => 'sunken');
+	$button_frame->grid(-row => 3, -column => 0);
+	$button_frame->Button(-text => 'Save',
+			-command => sub {
+				foreach my $key(keys %emulator_config) {
+					my $widget = $config_window->{$key};
+					my $class = ref $widget;
+					if($class eq 'Tk::Checkbutton') {
+						$emulator_config{$key} = $widget->{Value};
+					} elsif($class eq 'Tk::Entry') {
+						$emulator_config{$key} = $widget->get;
+					} else {
+						die "WTF: Widget $class not known!";
+					}
+				}
+				$config_window->destroy;
+			}
+	)->grid(-row => 0, -column => 0, -sticky => 'e');
+	$button_frame->Button(-text => 'Cancel',
+			-command => sub { $config_window->destroy }
+	)->grid(-row => 0, -column => 1, -sticky => 'w');
+
+	return $config_window;
+}
+
+sub create_launcher {
+	my $main_window = shift;
+
+	my $launcher = $main_window->Scrolled('Text', -scrollbars => 'ose',
+			-bg => '#ffffff', -height => '32', -width => '80',
+			-font => 'Monospace 10 normal', -fg => "#ff0000",
+			-relief => 'sunken', -state => 'disabled');
+	$launcher->pack(-fill => 'both');
+	$main_window->{launcher} = $launcher;
+	&update_launcher($launcher);
+	return $launcher;
+}
+
+sub update_launcher {
+	my $launcher = shift;
+	my @games = sort(@{&list_dir($launcher_config{rompath})});
+
+	$launcher->configure(-state => 'normal');
+	$launcher->delete('1.0', 'end');
+	foreach my $game (@games) {
+		$launcher->insert('insert', "$game\n", [$game]);
+		$launcher->tagBind($game, '<1>', sub { &run_game($game) });
+	}
+	$launcher->configure(-state => 'disabled');
+}
+
+sub list_dir {
+	my $dir_name = shift;
+	my $dir_ext_re = join '|', split(/\s+/, $launcher_config{romexts});
+	$dir_ext_re = "($dir_ext_re)";
+	my @dir_entries;
+
+	opendir my $dir_h, $dir_name or die "Could not open $dir_name for reading";
+	while(my $ent = readdir $dir_h) {
+		if( -f "$dir_name/$ent" && $ent =~ /.*\.$dir_ext_re$/) {
+			push @dir_entries, $ent;
+		}
+	}
+	closedir $dir_h;
+	return \@dir_entries;
+}
+
+sub run_game {
+	my $cmdline = &build_cmdline(shift);
+
+	my $child_pid = fork;
+	if(!defined($child_pid)) {
+		die "Failed to spawn child process";
+	} elsif($child_pid == 0) {
+		print "Running @{$cmdline}\n";
+		exec @$cmdline;
+	} else {
+		return $child_pid;
+	}
+}
+
+sub build_cmdline {
+	my ($rom, %kwargs) = @_;
+	my @cmdline;
+
+	push @cmdline, $launcher_config{emupath};
+
+	while(my ($key, $value) = each %emulator_config) {
+		$key =~ /(\w+)(plugin|flag|opt)/;
+		if($2 eq 'flag') {
+			push @cmdline, "--$1" if $value;
+		} elsif($2 eq 'plugin') {
+			push @cmdline, "--$1", "$launcher_config{pluginpath}/$value";
+		} elsif ($2 eq 'opt') {
+			push @cmdline, "--$1", $value;
+		} else {
+			print "\$1=$1\n\$2=$2\n";
+			die "WTF! What do you have \%emulator_config: $key = $value";
+		}
+	}
+
+	unless($kwargs{abs_rompath}) {
+		push @cmdline, "$launcher_config{rompath}/$rom";
+	} else {
+		push @cmdline, $rom;
+	}
+
+	return \@cmdline;
+}
+
+main;
+
