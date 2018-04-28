@@ -180,7 +180,9 @@ sub create_launcher {
 
 sub update_launcher {
 	my $launcher = shift;
-	my @games = sort @{&list_dir(glob $Config{'launcher.rompath'})};
+	my $rom_path = glob $Config{'launcher.rompath'};
+	say "Searching for ROMS in: $rom_path";
+	my @games = sort &find_roms($rom_path);
 
 	$launcher->configure(-state => 'normal');
 	$launcher->delete('1.0', 'end');
@@ -191,21 +193,27 @@ sub update_launcher {
 	$launcher->configure(-state => 'disabled');
 }
 
-sub list_dir {
+sub find_roms {
 	my $dir_name = shift;
-	my @rom_exts = split /\s+/, $Config{'launcher.romexts'};
+
+	my $rom_exts = $Config{'launcher.romexts'};
+	my @rom_exts = ref($rom_exts) eq 'ARRAY' ? @$rom_exts : split /\s+/, $rom_exts;
 	my $dir_ext_re = "(" . (join '|', @rom_exts) . ")";
+
 	my @dir_entries;
 
 	opendir my $dir_h, $dir_name or die "Could not open $dir_name for reading";
+
 	while (my $ent = readdir $dir_h) {
 		if ( -f "$dir_name/$ent" && $ent =~ /.*\.$dir_ext_re$/) {
+			say "Found ROM: $ent";
 			push @dir_entries, $ent;
 		}
 	}
+
 	closedir $dir_h;
 
-	return \@dir_entries;
+	return @dir_entries;
 }
 
 sub run_game {
