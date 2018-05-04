@@ -219,8 +219,12 @@ sub find_roms {
 sub run_game {
 	my @cmdline = @{&build_cmdline(shift)};
 
-	say "Running @cmdline...";
-	system @cmdline;
+	my $pid = fork();
+	if ($pid == 0) {
+		say 'Executing ' . join ' ', @cmdline;
+		exec @cmdline;
+	}
+	# TODO: else Store the pid somewhere
 }
 
 sub build_cmdline {
